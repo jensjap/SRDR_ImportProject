@@ -151,7 +151,80 @@ class MatrixRadioType < BaseType
     end
 
     def build
-        puts 'Will be building Matrix Radio type here.'
+        case @section
+        when 'design'
+            unless DesignDetail.scoped_by_extraction_form_id(@extraction_form_id).exists?(question: @question_text)
+                dd = DesignDetail.new
+                dd.question = @question_text
+                dd.extraction_form_id = @extraction_form_id
+                dd.field_type = @question_type
+                dd.field_note = nil
+                dd.question_number = DesignDetail.find_all_by_extraction_form_id(@extraction_form_id).length + 1
+                dd.study_id = nil
+                dd.instruction = @instruction
+                dd.is_matrix = 1
+                dd.include_other_as_option = nil
+                dd.save
+            else
+                dd = DesignDetail.scoped_by_extraction_form_id(@extraction_form_id).find_by_question(@question_text)
+            end
+            unless DesignDetailField.scoped_by_design_detail_id(dd.id).exists?(option_text: @matrix_row)
+                ddfr = DesignDetailField.new
+                ddfr.design_detail_id = dd.id
+                ddfr.option_text = @matrix_row
+                ddfr.subquestion = nil
+                ddfr.has_subquestion = nil
+                ddfr.column_number = 0
+                ddfr.row_number = DesignDetailField.scoped_by_design_detail_id(dd.id).find(:all, :conditions => ["row_number > 0"]).length + 1
+                ddfr.save
+            end
+            unless DesignDetailField.scoped_by_design_detail_id(dd.id).exists?(option_text: @matrix_col)
+                ddfc = DesignDetailField.new
+                ddfc.design_detail_id = dd.id
+                ddfc.option_text = @matrix_col
+                ddfc.subquestion = nil
+                ddfc.has_subquestion = nil
+                ddfc.column_number = DesignDetailField.scoped_by_design_detail_id(dd.id).find(:all, :conditions => ["column_number > 0"]).length + 1
+                ddfc.row_number = 0
+                ddfc.save
+            end
+        when 'outcome detail'
+            unless OutcomeDetail.scoped_by_extraction_form_id(@extraction_form_id).exists?(question: @question_text)
+                od = OutcomeDetail.new
+                od.question = @question_text
+                od.extraction_form_id = @extraction_form_id
+                od.field_type = @question_type
+                od.field_note = nil
+                od.question_number = OutcomeDetail.find_all_by_extraction_form_id(@extraction_form_id).length + 1
+                od.study_id = nil
+                od.instruction = @instruction
+                od.is_matrix = 1
+                od.include_other_as_option = nil
+                od.save
+            else
+                od = OutcomeDetail.scoped_by_extraction_form_id(@extraction_form_id).find_by_question(@question_text)
+            end
+            unless OutcomeDetailField.scoped_by_outcome_detail_id(od.id).exists?(option_text: @matrix_row)
+                odfr = OutcomeDetailField.new
+                odfr.outcome_detail_id = od.id
+                odfr.option_text = @matrix_row
+                odfr.subquestion = nil
+                odfr.has_subquestion = nil
+                odfr.column_number = 0
+                odfr.row_number = OutcomeDetailField.scoped_by_outcome_detail_id(od.id).find(:all, :conditions => ["row_number > 0"]).length + 1
+                odfr.save
+            end
+            unless OutcomeDetailField.scoped_by_outcome_detail_id(od.id).exists?(option_text: @matrix_col)
+                odfc = OutcomeDetailField.new
+                odfc.outcome_detail_id = od.id
+                odfc.option_text = @matrix_col
+                odfc.subquestion = nil
+                odfc.has_subquestion = nil
+                odfc.column_number = OutcomeDetailField.scoped_by_outcome_detail_id(od.id).find(:all, :conditions => ["column_number > 0"]).length + 1
+                odfc.row_number = 0
+                odfc.save
+            end
+        end
     end
 end
 
