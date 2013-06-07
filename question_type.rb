@@ -224,12 +224,25 @@ class MatrixRadioType < BaseType
                 odfc.row_number = 0
                 odfc.save
             end
+        when 'quality'
+            unless QualityDimensionField.scoped_by_extraction_form_id(@extraction_form_id).exists?(["title LIKE ?", "%[#{@question_text}] #{@matrix_row}%"])
+                qu = QualityDimensionField.new
+                qu.title = "[#{@question_text}] #{@matrix_row} [#{@matrix_col}]"
+                qu.field_notes = ''
+                qu.extraction_form_id = @extraction_form_id
+                qu.study_id = nil
+            else
+                qu = QualityDimensionField.scoped_by_extraction_form_id(@extraction_form_id).find(:first, conditions: ["title LIKE ?", "%[#{@question_text}] #{@matrix_row}%"])
+                qu.title = qu.title[0..-2] + ",#{@matrix_col}]"
+            end
+            qu.save
+        else
+            raise "Unable to match section for #{@question_type} type"
         end
     end
 end
 
-
-class MatrixValueType < BaseType
+class MatrixSelectType < BaseType
     attr_reader :matrix_row, :matrix_row_code, :matrix_col, :matrix_col_code
 
     def initialize(row, extraction_form_id)
@@ -241,7 +254,82 @@ class MatrixValueType < BaseType
     end
 
     def build
-        puts 'Will be building Matrix Value type here.'
+        case @section
+        when 'arm detail'
+            unless ArmDetail.scoped_by_extraction_form_id(@extraction_form_id).exists?(question: @question_text)
+                ad = ArmDetail.new
+                ad.question = @question_text
+                ad.field_type = @question_type
+                ad.extraction_form_id = @extraction_form_id
+                ad.field_note = nil
+                ad.question_number = ArmDetail.find_all_by_extraction_form_id(@extraction_form_id).length + 1
+                ad.study_id = nil
+                ad.instruction = @instruction
+                ad.is_matrix = 1
+                ad.include_other_as_option = nil
+                ad.save
+            else
+                ad = ArmDetail.scoped_by_extraction_form_id(@extraction_form_id).find_by_question(@question_text)
+            end
+            unless ArmDetailField.scoped_by_arm_detail_id(ad.id).exists?(option_text: @matrix_row)
+                adfr = ArmDetailField.new
+                adfr.arm_detail_id = ad.id
+                adfr.option_text = @matrix_row
+                adfr.subquestion = nil
+                adfr.has_subquestion = nil
+                adfr.column_number = 0
+                adfr.row_number = ArmDetailField.scoped_by_arm_detail_id(ad.id).find(:all, :conditions => ["row_number > 0"]).length + 1
+                adfr.save
+            end
+            unless ArmDetailField.scoped_by_arm_detail_id(ad.id).exists?(option_text: @matrix_col)
+                adfc = ArmDetailField.new
+                adfc.arm_detail_id = ad.id
+                adfc.option_text = @matrix_col
+                adfc.subquestion = nil
+                adfc.has_subquestion = nil
+                adfc.column_number = ArmDetailField.scoped_by_arm_detail_id(ad.id).find(:all, :conditions => ["column_number > 0"]).length + 1
+                adfc.row_number = 0
+                adfc.save
+            end
+        when 'baseline characteristic'
+            unless BaselineCharacteristic.scoped_by_extraction_form_id(@extraction_form_id).exists?(question: @question_text)
+                bc = BaselineCharacteristic.new
+                bc.question = @question_text
+                bc.field_type = @question_type
+                bc.extraction_form_id = @extraction_form_id
+                bc.field_notes = nil
+                bc.question_number = BaselineCharacteristic.find_all_by_extraction_form_id(@extraction_form_id).length + 1
+                bc.study_id = nil
+                bc.instruction = @instruction
+                bc.is_matrix = 1
+                bc.include_other_as_option = nil
+                bc.save
+            else
+                bc = BaselineCharacteristic.scoped_by_extraction_form_id(@extraction_form_id).find_by_question(@question_text)
+            end
+            unless BaselineCharacteristicField.scoped_by_baseline_characteristic_id(bc.id).exists?(option_text: @matrix_row)
+                bcfr = BaselineCharacteristicField.new
+                bcfr.baseline_characteristic_id = bc.id
+                bcfr.option_text = @matrix_row
+                bcfr.subquestion = nil
+                bcfr.has_subquestion = nil
+                bcfr.column_number = 0
+                bcfr.row_number = BaselineCharacteristicField.scoped_by_baseline_characteristic_id(bc.id).find(:all, :conditions => ["row_number > 0"]).length + 1
+                bcfr.save
+            end
+            unless BaselineCharacteristicField.scoped_by_baseline_characteristic_id(bc.id).exists?(option_text: @matrix_col)
+                bcfc = BaselineCharacteristicField.new
+                bcfc.baseline_characteristic_id = bc.id
+                bcfc.option_text = @matrix_col
+                bcfc.subquestion = nil
+                bcfc.has_subquestion = nil
+                bcfc.column_number = BaselineCharacteristicField.scoped_by_baseline_characteristic_id(bc.id).find(:all, :conditions => ["column_number > 0"]).length + 1
+                bcfc.row_number = 0
+                bcfc.save
+            end
+        #else
+        #    raise "Unable to match section for #{@question_type} type"
+        end
     end
 end
 
@@ -307,11 +395,10 @@ class RadioType < BaseType
         when 'quality'
             unless QualityDimensionField.scoped_by_extraction_form_id(@extraction_form_id).exists?(["title LIKE ?", "%#{@question_text}%"])
                 qu = QualityDimensionField.new
-                qu.title = @question_text
+                qu.title = "#{@question_text} [#{@answer_text}]"
                 qu.field_notes = ''
                 qu.extraction_form_id = @extraction_form_id
                 qu.study_id = nil
-                qu.title = qu.title + " [#{@answer_text}]"
             else
                 qu = QualityDimensionField.scoped_by_extraction_form_id(@extraction_form_id).find(:first, conditions: ["title LIKE ?", "%#{@question_text}%"])
                 qu.title = qu.title[0..-2] + ",#{@answer_text}]"

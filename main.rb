@@ -154,8 +154,8 @@ data.to_enum.with_index(0).each do |row, i|
         object = CheckboxType.new(row, extraction_form.id)
     when 'matrix_radio'
         object = MatrixRadioType.new(row, extraction_form.id)
-    when 'matrix_value'
-        object = MatrixValueType.new(row, extraction_form.id)
+    when 'matrix_select'
+        object = MatrixSelectType.new(row, extraction_form.id)
     when 'radio'
         object = RadioType.new(row, extraction_form.id)
     when 'text'
