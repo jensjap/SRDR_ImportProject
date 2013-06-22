@@ -2,7 +2,10 @@ require "rubyXL"
 require_relative "helper"
 require_relative "question_type"
 
-file = "data/nira.xlsx"
+# Extraction Form file
+ef_file = "data/nira.xlsx"
+# Study Data file
+sd_file = "data/ap2dataout.xlsx"
 
 puts "INFO: Program started.."
 puts "INFO: Loading rails environment..please hold.."
@@ -13,8 +16,9 @@ require File.expand_path(File.dirname(__FILE__) + "./config/environment")
 puts "INFO: Rails environment has been loaded."
 puts "INFO: Building project.."
 
+
 # Instantiate project.
-project_title = "Autoimport 2"
+project_title = "Autoimport Test Run 6"
 project_description = "Autoimport 1 description"
 project_notes = "Autoimport 1 notes"
 project_funding_source = "Autoimport 1 funding source"
@@ -66,7 +70,7 @@ ef_notes = "Autoimport 1 EF notes"
 ef_adverse_event_display_arms = 1
 ef_adverse_event_display_total = 1
 ef_project_id = project.id
-ef_is_ready = 0
+ef_is_ready = 1
 ef_bank_id = nil
 ef_is_diagnostic = 0
 
@@ -85,7 +89,20 @@ if extraction_form.valid?
     puts "INFO: Saving new extraction form to database returned [" +
         green(extraction_form.save.to_s) + "]"
 else
-    puts "CRITICAL: Unable to save extraction form to database."
+    put "CRITICAL: Unable to save extraction form to database."
+end
+
+
+# Associate extraction form with keyquestion
+extraction_form_key_question = ExtractionFormKeyQuestion.new(
+        extraction_form_id: extraction_form.id,
+        key_question_id: key_question.id)
+
+if extraction_form_key_question.valid?
+    puts "INFO: Saving new extraction form key question association to database returned [" +
+        green(extraction_form_key_question.save.to_s) + "]"
+else
+    put "CRITICAL: Unable to save extraction form to database."
 end
 
 
@@ -105,7 +122,6 @@ extraction_form_section_list.each do |section|
         extraction_form_section.save
     end
 end
-
 
 # Column map
 array = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
@@ -134,21 +150,25 @@ array = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
 lookup = Hash[array.zip 0..array.length]
 
 # Open up extraction form information file
-workbook = RubyXL::Parser.parse(file)
+workbook = RubyXL::Parser.parse(ef_file)
 ws1 = workbook[0]
 ws2 = workbook[1]
 
 # Prune the data - in case we have a header row.
-if ws1.extract_data[0][0] == 'Section'
-    data = ws1.extract_data[1..-1]
+if ws1.extract_data[0][0] == "Section"
+    data1 = ws1.extract_data[1..-1]
 else
-    data = ws1.extract_data
+    data1 = ws1.extract_data
 end
 
-item_hash = Hash.new
+if ws2.extract_data[0][0] == "SRDR tab"
+    data2 = ws2.extract_data[1..-1]
+else
+    data2 = ws2.extract_data
+end
 
 # Begin information extraction
-data.to_enum.with_index(0).each do |row, i|
+data1.to_enum.with_index(0).each do |row, i|
     case row[lookup['D']]
     when 'checkbox'
         object = CheckboxType.new(row, extraction_form.id)
@@ -172,14 +192,3 @@ data.to_enum.with_index(0).each do |row, i|
 end
 
 
-
-
-puts ""
-puts " ---- DETAILED SUMMARY ---- "
-puts ""
-puts project.inspect
-puts ""
-puts key_question.inspect
-puts ""
-puts extraction_form.inspect
-puts ""
