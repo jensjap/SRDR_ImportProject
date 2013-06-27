@@ -18,7 +18,7 @@ puts "INFO: Building project.."
 
 
 # Instantiate project.
-project_title = "Autoimport Test Run 6"
+project_title = "Autoimport Test Run 1"
 project_description = "Autoimport 1 description"
 project_notes = "Autoimport 1 notes"
 project_funding_source = "Autoimport 1 funding source"

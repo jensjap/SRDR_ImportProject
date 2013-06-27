@@ -2,8 +2,8 @@ require "rubyXL"
 require_relative "helper"
 
 # TODO: remove this constant when finished
-project_id = 6
-key_question_id = 6
+project_id = 13
+key_question_id = 13
 creator_id = 1
 
 # Extraction form information filename
@@ -47,14 +47,25 @@ class Crawler
         @row = self.get_study_data_row()
     end
 
-    def _push_arm_details(ef, ad, i, j, title)
+    def _get_column_id(column_name)
+        header_lookup = Hash[@data_sd_header.zip 0..@data_sd_header.length]
+        header_lookup[column_name]
+    end
+
+    def _get_cell_value(column_id)
+        @row[column_id]
+    end
+
+    def _push_arm_details(ef, ad, i, j, value, column_field_id, row_field_id)
         temp = {:section => "Arm Detail Arm",
                 :type => "arm table",
                 :extraction_form => ef,
                 :arm_detail => ad,
                 :i => i,
                 :j => j,
-                :title => title
+                :value => value,
+                :column_field_id => column_field_id,
+                :row_field_id => row_field_id
         }
         @work_order.push(temp)
     end
@@ -73,9 +84,40 @@ class Crawler
                         #puts "#{header_name} found in column number #{column_nr}"
                         value = @row[column_nr]
                         unless ( value == 0 || value.blank?)
-                            #puts "#{header_name} active"
-                            #puts value
-                            self._push_arm_details(ef, ad, i, j, value)
+                            # Build the column header
+                            cell_value = String.new
+                            rows = ArmDetailField.find(:all, :conditions => {:arm_detail_id => ad.id,
+                                                                             :column_number => 0})
+                            rows.each do |row|
+                                columns = ArmDetailField.find(:all, :conditions => {:arm_detail_id => ad.id,
+                                                                                    :row_number => 0})
+                                columns.each do |column|
+                                    lookup_arms = {"N Entering" => "nin_#{i}",
+                                                   "N Completing" => "nout_#{i}",
+                                                   "Dose" => "dose_#{i}",
+                                                   "Units" => "doseunit_#{i}",
+                                                   "Frequency" => "freq_#{i}",
+                                                   "Dose Description" => "desc_#{i}",
+                                                   "Duration of treatment" => "durunit_#{i}",
+                                    }
+                                    if column.option_text.downcase.include? "intervention"
+                                        (1..6).each do |cnt|
+                                            #puts "co-intervention values: #{cell_value}"
+                                            #puts "coint_#{i}_#{cnt}"
+                                            #puts header_lookup["coint_#{i}_#{cnt}"]
+                                            #puts @row[header_lookup["coint_#{i}_#{cnt}"]]
+                                            temp = @row[header_lookup["coint_#{i}_#{cnt}"]].to_s
+                                            cell_value << ", #{temp}" unless temp.blank?
+                                        end
+                                    else
+                                        cell_value = @row[header_lookup[lookup_arms[column.option_text]]].to_s
+                                        #puts "arm values: #{cell_value}"
+                                    end
+                                    column_field_id = column.id
+                                    row_field_id = row.id
+                                    self._push_arm_details(ef, ad, i, j, cell_value, column_field_id, row_field_id)
+                                end
+                            end
                         end
                     end
                 end
@@ -92,7 +134,7 @@ class Crawler
                                 if column_nr.blank?
                                     self._log_error(ad, adf)
                                 else
-                                    self._push_addp_matrix_select(ef, ad, adf, @row[column_nr])
+                                    self._push_addp_matrix_select(ef, ad, adf, adfc, @row[column_nr])
                                 end
                             end
                         end
@@ -479,7 +521,7 @@ class Crawler
         @work_order.push(temp)
     end
 
-    def _push_addp_matrix_select(ef, ad, adf, value)
+    def _push_addp_matrix_select(ef, ad, adf, adfc, value)
         convert = {1 => "Hour",
                    2 => "Day",
                    3 => "Week",
@@ -493,20 +535,26 @@ class Crawler
                    11 => "Weekly",
                    12 => "Monthly",
         }
-        if adf.option_text.downcase.include? "units"
+        if adfc.option_text.downcase.include? "units"
             temp = {:section => "Arm Detail",
                     :type => "Matrix_select",
                     :extraction_form => ef,
                     :arm_detail => ad,
                     :arm_detail_field => adf,
-                    :value => convert[value]}
+                    :value => convert[value],
+                    :arm_detail_column_nr => adfc.id,
+                    :row_field_id => adf.id
+            }
         else
             temp = {:section => "Arm Detail",
                     :type => "Matrix_select",
                     :extraction_form => ef,
                     :arm_detail => ad,
                     :arm_detail_field => adf,
-                    :value => value}
+                    :value => value,
+                    :arm_detail_column_nr => adfc.id,
+                    :row_field_id => adf.id
+            }
         end
         @work_order.push(temp)
     end
@@ -800,9 +848,9 @@ class Crawler
                     :outcome_id =>0
                 )
             when "Matrix_radio"
-                puts "++++++++++++++++++++++++++++"
-                puts wo[:value]
-                puts "++++++++++++++++++++++++++++"
+                #puts "++++++++++++++++++++++++++++"
+                #puts wo[:value]
+                #puts "++++++++++++++++++++++++++++"
                 DesignDetailDataPoint.create(
                     :design_detail_field_id => wo[:design_detail].id,
                     :value => wo[:value],
@@ -842,17 +890,70 @@ class Crawler
         when "Arm Detail"
             case wo[:type]
             when "Matrix_select"
-                pass
+                arms = Arm.find(:first, :conditions => {:study_id => study_id,
+                                                        :display_number => 10
+                })
+                ArmDetailDataPoint.create(
+                    :arm_detail_field_id => wo[:arm_detail].id,
+                    :value => wo[:value],
+                    :study_id => study_id,
+                    :extraction_form_id => wo[:extraction_form].id,
+                    :arm_id => arms.id,
+                    :row_field_id => wo[:row_field_id],
+                    :column_field_id => wo[:arm_detail_column_nr]
+                )
             end
         when "Arm Detail Arm"
-            pass
+            arms = Arm.find(:first, :conditions => {:study_id => study_id,
+                                                    :display_number => wo[:j]
+            })
+            ArmDetailDataPoint.create(
+                :arm_detail_field_id => wo[:arm_detail].id,
+                :value => wo[:value],
+                :study_id => study_id,
+                :extraction_form_id => wo[:extraction_form].id,
+                :arm_id => arms.id,
+                :row_field_id => wo[:row_field_id],
+                :column_field_id => wo[:column_field_id],
+                :outcome_id => 0
+            )
         when "Outcome Detail"
             case wo[:type]
             when "Checkbox"
-                pass
+                OutcomeDetailDataPoint.create(
+                    :outcome_detail_field_id => wo[:outcome_detail].id,
+                    :value => wo[:outcome_detail_field].option_text,
+                    :study_id => study_id,
+                    :extraction_form_id => wo[:extraction_form].id,
+                    :row_field_id => 0,
+                    :column_field_id => 0,
+                    :arm_id => 0,
+                    :outcome_id =>0
+                )
             when "Matrix_radio"
-                pass
+                OutcomeDetailDataPoint.create(
+                    :outcome_detail_field_id => wo[:outcome_detail].id,
+                    :value => wo[:value],
+                    :study_id => study_id,
+                    :extraction_form_id => wo[:extraction_form].id,
+                    :subquestion_value => wo[:subquestion_value],
+                    :row_field_id => wo[:outcome_detail_field].id,
+                    :column_field_id => 0,
+                    :arm_id => 0,
+                    :outcome_id =>0
+                )
             when "Radio"
+                OutcomeDetailDataPoint.create(
+                    :outcome_detail_field_id => wo[:outcome_detail].id,
+                    :value => wo[:value],
+                    :study_id => study_id,
+                    :extraction_form_id => wo[:extraction_form].id,
+                    :subquestion_value => wo[:subquestion_value],
+                    :row_field_id => 0,
+                    :column_field_id => 0,
+                    :arm_id => 0,
+                    :outcome_id =>0
+                )
             end
         when "Baseline characteristic"
             case wo[:type]
@@ -863,9 +964,15 @@ class Crawler
             when "Matrix_select"
                 pass
             when "Text"
+                pass
             end
         when "Quality Dimension"
-            pass
+            QualityDimensionDataPoint.create(
+                :quality_dimension_field_id => wo[:quality_dimension_field].id,
+                :value => wo[:value],
+                :study_id => study_id,
+                :extraction_form_id => wo[:quality_dimension_field].extraction_form_id
+            )
         end
     end
 
@@ -883,6 +990,15 @@ class Crawler
         puts @row[0]
         return @row[0]
     end
+
+    def print_current_case_author()
+        puts @row[3]
+        return @row[3]
+    end
+
+    def _return_value_by_column_nr(column_nr)
+        return @row[column_nr]
+    end
 end
 
 
@@ -896,29 +1012,17 @@ crawler.extraction_forms.each do |ef|
     #puts "Extraction form ID: " + green(ef.id)
     #puts "Extraction form title: " + green(ef.title)
     #puts "Design details for this extraction form: "
-    (1..5).each do |counter|
-        study = Study.create(
-            :project_id => project_id,
-            :creator_id => creator_id
-        )
-        study_id = study.id
-        primary_publication = PrimaryPublication.create(
-            :study_id => study_id
-        )
-        internal_publication_info = PrimaryPublicationNumber.create(
-            :primary_publication_id => primary_publication.id,
-            :number => crawler.print_current_case_id(),
-            :number_type => "internal"
-        )
-        study_key_question = StudyKeyQuestion.create(
-            :study_id => study_id,
-            :key_question_id => key_question_id,
-            :extraction_form_id => ef.id
-        )
-        study_extraction_form = StudyExtractionForm.create(
-            :study_id => study_id,
-            :extraction_form_id => ef.id
-        )
+
+    ef_section_options = EfSectionOption.create(
+        :extraction_form_id => ef.id,
+        :section => "arm_detail",
+        :by_arm => 1,
+        :by_outcome => 1
+    )
+
+    # Iterate through the studies
+    #(1..10).each do |counter|
+    (1..1).each do |counter|
         crawler.crawl_design_detail_answer_columns(ef)
         crawler.crawl_arm_detail_answer_columns(ef)
         crawler.crawl_outcome_detail_answer_columns(ef)
@@ -930,6 +1034,148 @@ crawler.extraction_forms.each do |ef|
             abort("ERRORS found..")
         else
             puts "NO ERRORS....LET'S ROLL"
+            study = Study.create(
+                :project_id => project_id,
+                :creator_id => creator_id,
+                :extraction_form_id => ef.id
+            )
+            study_id = study.id
+            primary_publication = PrimaryPublication.create(
+                :study_id => study_id
+            )
+            internal_publication_info = PrimaryPublicationNumber.create(
+                :primary_publication_id => primary_publication.id,
+                :number => crawler.print_current_case_id(),
+                :number_type => "internal"
+            )
+            study_key_question = StudyKeyQuestion.create(
+                :study_id => study_id,
+                :key_question_id => key_question_id,
+                :extraction_form_id => ef.id
+            )
+            study_extraction_form = StudyExtractionForm.create(
+                :study_id => study_id,
+                :extraction_form_id => ef.id
+            )
+            arms1 = Arm.create(
+                :study_id => study_id,
+                :title => "Placebo",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            arms2 = Arm.create(
+                :study_id => study_id,
+                :title => "Aripiprazole",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            arms3 = Arm.create(
+                :study_id => study_id,
+                :title => "Asenapine",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            arms4 = Arm.create(
+                :study_id => study_id,
+                :title => "Iloperidone",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            arms5 = Arm.create(
+                :study_id => study_id,
+                :title => "Olanzapine",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            arms6 = Arm.create(
+                :study_id => study_id,
+                :title => "Quetiapine",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            arms7 = Arm.create(
+                :study_id => study_id,
+                :title => "Paliperidone",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            arms8 = Arm.create(
+                :study_id => study_id,
+                :title => "Risperidone",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            arms9 = Arm.create(
+                :study_id => study_id,
+                :title => "Ziprasidone",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            arms10 = Arm.create(
+                :study_id => study_id,
+                :title => "Other",
+                :display_number => Arm.find_all_by_study_id(study_id).length + 1,
+                :extraction_form_id => ef.id,
+                :is_intention_to_treat => 1
+            )
+            (1..20).each do |outcome_cnt|
+                header_outcome = "outcome#{outcome_cnt}"
+                row_data = crawler._get_current_study_data_row()
+                column_id = crawler._get_column_id(header_outcome)
+                value = crawler._get_cell_value(column_id)
+                unless value.blank?
+                    puts "header name: #{header_outcome}"
+                    puts "column_nr: #{column_id}"
+                    puts "value: #{value}"
+                    outcome = Outcome.create(
+                        :study_id => study_id,
+                        :title => value,
+                        :is_primary => 1,
+                        :units => "",
+                        :description => "",
+                        :notes => "",
+                        :outcome_type => "Time to Event",
+                        :extraction_form_id => ef.id
+                    )
+                    OutcomeSubgroup.create(
+                        :outcome_id => outcome.id,
+                        :title => "All Participants",
+                        :description => "All participants involved in the study (Default)"
+                    )
+                    header_outcome = "fup#{outcome_cnt}"
+                    row_data = crawler._get_current_study_data_row()
+                    column_id = crawler._get_column_id(header_outcome)
+                    number = crawler._get_cell_value(column_id)
+
+                    header_outcome = "fupunit#{outcome_cnt}"
+                    row_data = crawler._get_current_study_data_row()
+                    column_id = crawler._get_column_id(header_outcome)
+                    unit = crawler._get_cell_value(column_id)
+                    unit_conversion = {
+                        1 => "Hour",
+                        2 => "Day",
+                        3 => "Week",
+                        4 => "Biweekly",
+                        5 => "Month",
+                        6 => "Year",
+                        9 => "Not Recorded"
+                    }
+                    OutcomeTimepoint.create(
+                        :outcome_id => outcome.id,
+                        :number => number,
+                        :time_unit => unit_conversion[unit]
+                    )
+                end
+            end
             crawler.work_order.each do |wo|
                 crawler.write_to_db(wo, creator_id, project_id, study_id)
             end
