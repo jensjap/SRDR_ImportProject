@@ -123,6 +123,51 @@ extraction_form_section_list.each do |section|
     end
 end
 
+# Create Arms
+["Placebo", "Aripiprazole", "Asenapine", "Iloperidone", "Olanzapine", "Quetiapine", "Paliperidone", "Risperidone", "Ziprasidone", "Other"].each do |n|
+    ExtractionFormArm.create(
+        :name               => n,
+        :description        => "",
+        :note               => nil,
+        :extraction_form_id => extraction_form.id,
+    )
+end
+
+_outcome_detail = OutcomeDetail.create(
+    :question => "Outcome Text",
+    :extraction_form_id => extraction_form.id,
+    :field_type => "matrix_select",
+    :field_note => nil,
+    :question_number => OutcomeDetail.find_all_by_extraction_form_id(extraction_form.id).length + 1,
+    :study_id => nil,
+    :is_matrix => 1,
+)
+
+OutcomeDetailField.create(
+    :outcome_detail_id => _outcome_detail.id,
+    :option_text => "Outcome Text",
+    :column_number => 0,
+    :row_number => 1,
+)
+OutcomeDetailField.create(
+    :outcome_detail_id => _outcome_detail.id,
+    :option_text => "Number",
+    :column_number => 0,
+    :row_number => 2,
+)
+OutcomeDetailField.create(
+    :outcome_detail_id => _outcome_detail.id,
+    :option_text => "Unit",
+    :column_number => 0,
+    :row_number => 3,
+)
+OutcomeDetailField.create(
+    :outcome_detail_id => _outcome_detail.id,
+    :option_text => "Value",
+    :column_number => 1,
+    :row_number => 0,
+)
+
 # Column map
 array = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
          'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
@@ -166,6 +211,30 @@ if ws2.extract_data[0][0] == "SRDR tab"
 else
     data2 = ws2.extract_data
 end
+
+## Scan the data worksheet and determine how many outcomes exist
+workbook  = RubyXL::Parser.parse(sd_file)
+worksheet = workbook[0]
+header = worksheet.extract_data[0]
+data = worksheet.extract_data[1..-2]
+header_lookup = Hash[header.zip 0..header.length]
+outcome_list = Array.new
+data.each do |row|
+    (1..20).each do |n|
+        outcome = row[header_lookup["outcome#{n}"]]
+        outcome_list.push(outcome) unless outcome.blank?
+    end
+end
+outcome_set = outcome_list.to_set
+outcome_set.each do |outcome|
+    ExtractionFormOutcomeName.create(
+        :title => outcome,
+        :note => "",
+        :extraction_form_id => extraction_form.id,
+        :outcome_type => "Time to Event",
+    )
+end
+
 
 # Begin information extraction
 data1.to_enum.with_index(0).each do |row, i|
