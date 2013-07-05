@@ -526,8 +526,7 @@ class ServeDinner
               column_id_other = @header_2_column_id["other_country_sp"]
               subquestion_value = @row[column_id_other]
             elsif serving[:option_text_row].downcase.include? "other (funding source)"
-                value = self._get_other_funding
-                subquestion_value = value
+                subquestion_value = self._get_other_funding
             end
           end
           self._insert_type_data_point(serving[:type], serving, value, subquestion_value, @study_id, nil, nil)
