@@ -11,7 +11,7 @@ puts "INFO: Program started.."
 puts "INFO: Loading rails environment..please hold.."
 
 ENV["RAILS_ENV"] = ARGV.first || ENV["RAILS_ENV"] || "development"
-require File.expand_path(File.dirname(__FILE__) + "./config/environment")
+require File.expand_path(File.dirname(__FILE__) + "./SRDR/config/environment")
 
 puts "INFO: Rails environment has been loaded."
 puts "INFO: Building project.."

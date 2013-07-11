@@ -162,7 +162,7 @@ end
 
 def load_rails_environment
   ENV["RAILS_ENV"] = ARGV.first || ENV["RAILS_ENV"] || "development"
-  require File.expand_path(File.dirname(__FILE__) + "./config/environment")
+  require File.expand_path(File.dirname(__FILE__) + "./SRDR/config/environment")
 end
 
 def load_study_data(file, log)
@@ -525,6 +525,8 @@ class ServeDinner
             if serving[:option_text_row].downcase.include? "other country"
               column_id_other = @header_2_column_id["other_country_sp"]
               subquestion_value = @row[column_id_other]
+            elsif serving[:option_text_row].downcase.include? "other (funding source)"
+                subquestion_value = self._get_other_funding
             end
           end
           self._insert_type_data_point(serving[:type], serving, value, subquestion_value, @study_id, nil, nil)
@@ -538,11 +540,15 @@ class ServeDinner
           if serving[:type] == "BaselineCharacteristic"
             arm_id = 0
           end
-          unless value == 0
-            if value == 1
-              value = serving[:option_text_row]
-            end
+          if serving[:lookup_text].downcase.include? "sample size"
             self._insert_type_data_point(serving[:type], serving, value, @study_id, arm_id, 0)
+          else
+            unless value == 0
+              if value == 1
+                value = serving[:option_text_row]
+              end
+              self._insert_type_data_point(serving[:type], serving, value, @study_id, arm_id, 0)
+            end
           end
         end
       when "OutcomeDetail"
@@ -573,6 +579,16 @@ class ServeDinner
         self._insert_type_data_point(serving[:type], serving, value, @study_id, nil, nil)
       end
     end
+  end
+
+  def _get_other_funding
+    temp = @row[@header_2_column_id["funding_oth1"]]
+    value = temp.to_s
+    (2..4).each do |cnt|
+      temp = @row[@header_2_column_id["funding_oth#{cnt}"]]
+      value << ", #{temp.to_s}" unless temp.blank?
+    end
+    return value
   end
 
   def _get_arm_detail_data_point_value(n, serving)
