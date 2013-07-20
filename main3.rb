@@ -162,7 +162,7 @@ end
 
 def load_rails_environment
   ENV["RAILS_ENV"] = ARGV.first || ENV["RAILS_ENV"] || "development"
-  require File.expand_path(File.dirname(__FILE__) + "./SRDR/config/environment")
+  require File.expand_path(File.dirname(__FILE__) + "./../SRDR/config/environment")
 end
 
 def load_study_data(file, log)
